@@ -1,2 +1,10 @@
 # My CLI Todo app
-> I'm making this to learn stuff
+I'm making this to learn stuff
+
+> This is a minimal CLI TODO app , no TUI yet.
+
+### Currently we have :
+* Add upto 100 tasks
+* Delete, complete 'em
+* view 'em
+* thats it.
