@@ -89,7 +89,7 @@ void draw_base_ui(void) {
     mvprintw(1, center_x(w, strlen(title)), "%s", title);
 
     /* command help (kept compact & centered) */
-    const char *line1 = "A Add   V View   C <n> Complete   D <n> Delete";
+    const char *line1 = "A Add   V View   E <n> Edit   C <n> Complete   D <n> Delete";
     const char *line2 = "R Raw   X Clear   Q Quit";
 
     mvprintw(3, center_x(w, strlen(line1)), "%s", line1);
@@ -126,13 +126,17 @@ void clear_content(void) {
 void viewTasksUI(void) {
     Task tasks[MAX_TASKS];
     int count = loadTasks(tasks);
-    int h, w, row = 7, idx = 1;
-    getmaxyx(stdscr, h, w);
+    int h = LINES;
+    int w = COLS;
+    int row = 7;
+    int idx = 1;
+
+    (void)w; /* unused but kept for symmetry */
 
     clear_content();
 
     if (count == 0) {
-        mvprintw(row, center_x(w, 15), "No tasks found");
+        mvprintw(row, 4, "No tasks found");
         set_status("Nothing to display");
         return;
     }
@@ -140,33 +144,33 @@ void viewTasksUI(void) {
     for (int i = 0; i < count && row < h - 4; i++) {
         if (!tasks[i].active) continue;
 
-        char line[300];
-        snprintf(line, sizeof(line),
+        mvprintw(row++, 4,
                  "%d. [%c] %s",
                  idx++,
                  tasks[i].done ? 'x' : ' ',
                  tasks[i].text);
-
-        mvprintw(row++, center_x(w, strlen(line)), "%s", line);
     }
-
-    set_status("Tasks loaded");
+    set_status("Viewing Tasks");
 }
+
 
 void addTaskUI(void) {
     char input[256];
-    int h, w;
-    getmaxyx(stdscr, h, w);
 
     clear_content();
-    mvprintw(7, center_x(w, 10), "Add a task:");
-    mvprintw(9, center_x(w, 2), "> ");
+
+    mvprintw(7, 4, "Add a task:");
+    mvprintw(9, 4, "> ");
+
+    move(9, 6);
+    clrtoeol();
 
     echo();
     getnstr(input, 255);
-    // noecho();
+    noecho();
 
     if (strlen(input) == 0) {
+        viewTasksUI();
         set_status("Empty task ignored");
         return;
     }
@@ -180,9 +184,10 @@ void addTaskUI(void) {
     fprintf(file, "1|0|%s\n", input);
     fclose(file);
 
-    set_status("Task added");
     viewTasksUI();
+    set_status("Task added");
 }
+
 
 void completeTaskUI(int userIndex) {
     Task tasks[MAX_TASKS];
@@ -206,9 +211,55 @@ void completeTaskUI(int userIndex) {
     }
 
     saveTasks(tasks, count);
-    set_status("Task marked completed");
     viewTasksUI();
+    set_status("Task marked completed");
 }
+
+void editTaskUI(int userIndex) {
+    Task tasks[MAX_TASKS];
+    int count = loadTasks(tasks);
+    int visible = 0;
+    int found = -1;
+
+    /* locate task by visible index */
+    for (int i = 0; i < count; i++) {
+        if (!tasks[i].active) continue;
+        if (++visible == userIndex) {
+            found = i;
+            break;
+        }
+    }
+
+    if (found == -1) {
+        set_status("Invalid task index");
+        return;
+    }
+
+    clear_content();
+
+    mvprintw(7, 4, "Old : %s", tasks[found].text);
+    mvprintw(9, 4, "New : ");
+
+    move(9, 10);
+    clrtoeol();
+
+    char buf[256];
+    echo();
+    getnstr(buf, 255);
+
+    if (strlen(buf) == 0) {
+        set_status("Edit cancelled");
+        return;
+    }
+
+    strncpy(tasks[found].text, buf, sizeof(tasks[found].text) - 1);
+    tasks[found].text[sizeof(tasks[found].text) - 1] = '\0';
+
+    saveTasks(tasks, count);
+    viewTasksUI();
+    set_status("Task updated");
+}
+
 
 void deleteTaskUI(int userIndex) {
     Task tasks[MAX_TASKS];
@@ -232,8 +283,8 @@ void deleteTaskUI(int userIndex) {
     }
 
     saveTasks(tasks, count);
-    set_status("Task deleted");
     viewTasksUI();
+    set_status("Task deleted");
 }
 
 void viewTasksRawUI(void) {
@@ -260,16 +311,18 @@ void viewTasksRawUI(void) {
 
 void clearTaskDataUI(void) {
     clear_content();
-    mvprintw(7, 2, "WARNING: This will delete all tasks");
+    mvprintw(7, 2, "WARNING: This will delete all tasks!");
     mvprintw(9, 2, "Confirm (y/n): ");
 
     int ch = getch();
     if (ch == 'y' || ch == 'Y') {
         FILE *file = fopen(FILE_NAME, "w");
         if (file) fclose(file);
+        viewTasksUI();
         set_status("All task data cleared");
     } else {
-        set_status("Clear cancelled");
+        viewTasksUI();
+        set_status("Clear data cancelled");
     }
 }
 
@@ -284,6 +337,7 @@ int main(void) {
     // noecho();
     keypad(stdscr, TRUE);
 
+    viewTasksUI();
     set_status("Ready");
     draw_base_ui();
 
@@ -310,6 +364,8 @@ int main(void) {
             viewTasksUI();
         else if (cmd[0] == 'c' || cmd[0] == 'C')
             completeTaskUI(atoi(cmd + 1));
+        else if (cmd[0] == 'e' || cmd[0] == 'E')
+            editTaskUI(atoi(cmd + 1));
         else if (cmd[0] == 'd' || cmd[0] == 'D')
             deleteTaskUI(atoi(cmd + 1));
         else if (cmd[0] == 'r' || cmd[0] == 'R')
