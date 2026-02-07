@@ -1,9 +1,10 @@
-1|0|Unlimited tasks
+1|0|Add unlimited tasks
 1|0|Add colors
 1|1|Make the view tasks not centered
 1|1|edit tasks
 1|0|hide the completed tasks and add a way to see completed tasks
-1|0|grouping tasks for better organisation
+1|1|grouping tasks for better organisation
 1|0|Undo feature
-1|0|Delete tasks (prem)
 0|1|dhvgdfjvbjd
+1|1|Do some shit
+1|1|Hard delete feature

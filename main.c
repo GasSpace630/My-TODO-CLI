@@ -227,19 +227,23 @@ void completeTaskUI(int userIndex) {
     int map[MAX_TASKS];
     int count = loadTasks(tasks);
 
-    int visible = buildVisibleIndex(tasks, count, map, 0);
+    int visible = buildVisibleIndex(tasks, count, map, 1);
 
     if (userIndex < 1 || userIndex > visible) {
         set_status("Invalid task index");
         return;
     }
 
-    tasks[map[userIndex - 1]].done = 1;
+    Task *t = &tasks[map[userIndex - 1]];
+    t->done ^= 1;   /* toggle */
 
     saveTasks(tasks, count);
     viewTasksUI(0);
-    set_status("Task marked completed");
+
+    set_status(t->done ? "Task marked completed"
+                       : "Task marked active");
 }
+
 
 
 void editTaskUI(int userIndex) {
@@ -283,7 +287,7 @@ void editTaskUI(int userIndex) {
 }
 
 
-void deleteTaskUI(int userIndex) {
+void deleteTaskUI(int userIndex, int hard) {
     Task tasks[MAX_TASKS];
     int map[MAX_TASKS];
     int count = loadTasks(tasks);
@@ -295,11 +299,26 @@ void deleteTaskUI(int userIndex) {
         return;
     }
 
-    tasks[map[userIndex - 1]].active = 0;
+    int real = map[userIndex - 1];
+
+    if (!hard) {
+        /* soft delete */
+        tasks[real].active = 0;
+        saveTasks(tasks, count);
+        viewTasksUI(0);
+        set_status("Task deleted");
+        return;
+    }
+
+    /* hard delete */
+    memmove(&tasks[real],
+            &tasks[real + 1],
+            (count - real - 1) * sizeof(Task));
+    count--;
 
     saveTasks(tasks, count);
     viewTasksUI(0);
-    set_status("Task deleted");
+    set_status("Task permanently deleted");
 }
 
 
@@ -387,8 +406,19 @@ int main(void) {
             completeTaskUI(atoi(cmd + 1));
         else if (cmd[0] == 'e' || cmd[0] == 'E')
             editTaskUI(atoi(cmd + 1));
-        else if (cmd[0] == 'd' || cmd[0] == 'D')
-            deleteTaskUI(atoi(cmd + 1));
+        else if (cmd[0] == 'd' || cmd[0] == 'D') {
+            int hard = 0;
+            int n = 0;
+
+            if (strstr(cmd, "-p")) {
+                hard = 1;
+                n = atoi(cmd + 2);
+            } else {
+                n = atoi(cmd + 1);
+            }
+
+            deleteTaskUI(n, hard);
+        }
         else if (cmd[0] == 'r' || cmd[0] == 'R')
             viewTasksRawUI();
         else if (cmd[0] == 'x' || cmd[0] == 'X')
