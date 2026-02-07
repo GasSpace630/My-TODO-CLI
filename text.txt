@@ -2,6 +2,8 @@
 1|0|Add colors
 1|1|Make the view tasks not centered
 1|1|edit tasks
-0|0|shdj
 1|0|hide the completed tasks and add a way to see completed tasks
 1|0|grouping tasks for better organisation
+1|0|Undo feature
+1|0|Delete tasks (prem)
+0|1|dhvgdfjvbjd

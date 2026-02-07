@@ -33,6 +33,28 @@ void handle_resize(int sig) {
     resized = 1;
 }
 
+int buildVisibleIndex(Task tasks[], int count, int map[], int show_all) {
+    int v = 0;
+
+    /* incomplete first */
+    for (int i = 0; i < count; i++) {
+        if (!tasks[i].active) continue;
+        if (tasks[i].done) continue;
+        map[v++] = i;
+    }
+
+    /* completed later (optional) */
+    if (show_all) {
+        for (int i = 0; i < count; i++) {
+            if (!tasks[i].active) continue;
+            if (!tasks[i].done) continue;
+            map[v++] = i;
+        }
+    }
+
+    return v; /* visible count */
+}
+
 
 /* ---------- FILE ---------- */
 
@@ -123,15 +145,12 @@ void clear_content(void) {
 
 /* ---------- TASK OPS ---------- */
 
-void viewTasksUI(void) {
+void viewTasksUI(int show_all) {
     Task tasks[MAX_TASKS];
+    int map[MAX_TASKS];
     int count = loadTasks(tasks);
     int h = LINES;
-    int w = COLS;
     int row = 7;
-    int idx = 1;
-
-    (void)w; /* unused but kept for symmetry */
 
     clear_content();
 
@@ -141,16 +160,31 @@ void viewTasksUI(void) {
         return;
     }
 
-    for (int i = 0; i < count && row < h - 4; i++) {
-        if (!tasks[i].active) continue;
+    int visible = buildVisibleIndex(tasks, count, map, show_all);
+
+    if (visible == 0) {
+        mvprintw(row, 4, "No active tasks");
+        set_status("Nothing to display");
+        return;
+    }
+
+    for (int i = 0; i < visible && row < h - 4; i++) {
+        Task *t = &tasks[map[i]];
+
+        if (t->done)
+            attron(A_DIM);
 
         mvprintw(row++, 4,
                  "%d. [%c] %s",
-                 idx++,
-                 tasks[i].done ? 'x' : ' ',
-                 tasks[i].text);
+                 i + 1,
+                 t->done ? 'x' : ' ',
+                 t->text);
+
+        if (t->done)
+            attroff(A_DIM);
     }
-    set_status("Viewing Tasks");
+
+    set_status(show_all ? "Viewing all tasks" : "Viewing active tasks");
 }
 
 
@@ -167,10 +201,9 @@ void addTaskUI(void) {
 
     echo();
     getnstr(input, 255);
-    noecho();
 
     if (strlen(input) == 0) {
-        viewTasksUI();
+        viewTasksUI(0);
         set_status("Empty task ignored");
         return;
     }
@@ -184,60 +217,48 @@ void addTaskUI(void) {
     fprintf(file, "1|0|%s\n", input);
     fclose(file);
 
-    viewTasksUI();
+    viewTasksUI(0);
     set_status("Task added");
 }
 
 
 void completeTaskUI(int userIndex) {
     Task tasks[MAX_TASKS];
+    int map[MAX_TASKS];
     int count = loadTasks(tasks);
-    int visible = 0, found = 0;
 
-    for (int i = 0; i < count; i++) {
-        if (!tasks[i].active) continue;
-        visible++;
+    int visible = buildVisibleIndex(tasks, count, map, 0);
 
-        if (visible == userIndex) {
-            tasks[i].done = 1;
-            found = 1;
-            break;
-        }
-    }
-
-    if (!found) {
+    if (userIndex < 1 || userIndex > visible) {
         set_status("Invalid task index");
         return;
     }
 
+    tasks[map[userIndex - 1]].done = 1;
+
     saveTasks(tasks, count);
-    viewTasksUI();
+    viewTasksUI(0);
     set_status("Task marked completed");
 }
 
+
 void editTaskUI(int userIndex) {
     Task tasks[MAX_TASKS];
+    int map[MAX_TASKS];
     int count = loadTasks(tasks);
-    int visible = 0;
-    int found = -1;
 
-    /* locate task by visible index */
-    for (int i = 0; i < count; i++) {
-        if (!tasks[i].active) continue;
-        if (++visible == userIndex) {
-            found = i;
-            break;
-        }
-    }
+    int visible = buildVisibleIndex(tasks, count, map, 1);
 
-    if (found == -1) {
+    if (userIndex < 1 || userIndex > visible) {
         set_status("Invalid task index");
         return;
     }
 
+    int real = map[userIndex - 1];
+
     clear_content();
 
-    mvprintw(7, 4, "Old : %s", tasks[found].text);
+    mvprintw(7, 4, "Old : %s", tasks[real].text);
     mvprintw(9, 4, "New : ");
 
     move(9, 10);
@@ -248,44 +269,39 @@ void editTaskUI(int userIndex) {
     getnstr(buf, 255);
 
     if (strlen(buf) == 0) {
+        viewTasksUI(0);
         set_status("Edit cancelled");
         return;
     }
 
-    strncpy(tasks[found].text, buf, sizeof(tasks[found].text) - 1);
-    tasks[found].text[sizeof(tasks[found].text) - 1] = '\0';
+    strncpy(tasks[real].text, buf, sizeof(tasks[real].text) - 1);
+    tasks[real].text[sizeof(tasks[real].text) - 1] = '\0';
 
     saveTasks(tasks, count);
-    viewTasksUI();
+    viewTasksUI(0);
     set_status("Task updated");
 }
 
 
 void deleteTaskUI(int userIndex) {
     Task tasks[MAX_TASKS];
+    int map[MAX_TASKS];
     int count = loadTasks(tasks);
-    int visible = 0, found = 0;
 
-    for (int i = 0; i < count; i++) {
-        if (!tasks[i].active) continue;
-        visible++;
+    int visible = buildVisibleIndex(tasks, count, map, 1);
 
-        if (visible == userIndex) {
-            tasks[i].active = 0;
-            found = 1;
-            break;
-        }
-    }
-
-    if (!found) {
+    if (userIndex < 1 || userIndex > visible) {
         set_status("Invalid task index");
         return;
     }
 
+    tasks[map[userIndex - 1]].active = 0;
+
     saveTasks(tasks, count);
-    viewTasksUI();
+    viewTasksUI(0);
     set_status("Task deleted");
 }
+
 
 void viewTasksRawUI(void) {
     FILE *file = fopen(FILE_NAME, "r");
@@ -318,10 +334,10 @@ void clearTaskDataUI(void) {
     if (ch == 'y' || ch == 'Y') {
         FILE *file = fopen(FILE_NAME, "w");
         if (file) fclose(file);
-        viewTasksUI();
+        viewTasksUI(0);
         set_status("All task data cleared");
     } else {
-        viewTasksUI();
+        viewTasksUI(0);
         set_status("Clear data cancelled");
     }
 }
@@ -334,10 +350,9 @@ int main(void) {
     initscr();
     signal(SIGWINCH, handle_resize);
     cbreak();
-    // noecho();
     keypad(stdscr, TRUE);
 
-    viewTasksUI();
+    viewTasksUI(0);
     set_status("Ready");
     draw_base_ui();
 
@@ -360,8 +375,14 @@ int main(void) {
             break;
         else if (cmd[0] == 'a' || cmd[0] == 'A')
             addTaskUI();
-        else if (cmd[0] == 'v' || cmd[0] == 'V')
-            viewTasksUI();
+        else if (cmd[0] == 'v' || cmd[0] == 'V') {
+            int show_all = 0;
+
+            if (strstr(cmd, "-a"))
+                show_all = 1;
+
+            viewTasksUI(show_all);
+        }
         else if (cmd[0] == 'c' || cmd[0] == 'C')
             completeTaskUI(atoi(cmd + 1));
         else if (cmd[0] == 'e' || cmd[0] == 'E')
