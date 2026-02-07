@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <ncurses.h>
 #include <string.h>
 
 #define MAX_TASKS 100
@@ -47,7 +48,9 @@ int loadTasks(Task tasks[]) {
                     &tasks[count].active,
                     &tasks[count].done,
                     tasks[count].text) == 3) {
-        count++;
+        if (tasks[count].active == 1) {
+            count++;
+        }
     }
 
     fclose(file);
@@ -72,6 +75,18 @@ void viewTasks(void) {
             tasks[i].done ? 'x' : ' ',
             tasks[i].text);
     }
+}
+
+// print the task file (text.txt)
+void viewTasksRaw(void) {
+    FILE *file = fopen("text.txt","r");
+    if (!file) return;
+
+    char buffer[256];
+    while (fgets(buffer, sizeof(buffer), file)) {
+        printf("%s", buffer);
+    }
+    fclose(file);
 }
 
 void deleteTask(int userIndex) {
@@ -103,6 +118,14 @@ void deleteTask(int userIndex) {
     printf("Task soft-deleted!\n");
 }
 
+// make the task file empty
+void clearTaskData(void) {
+    FILE *file = fopen("text.txt","w");
+    if (file) {
+        fclose(file);
+        printf("Task data cleared\n");
+    }
+}
 
 void completeTask(int userIndex) {
     Task tasks[MAX_TASKS];
@@ -115,6 +138,11 @@ void completeTask(int userIndex) {
         visible++;
         if (visible == userIndex) {
             tasks[i].done = 1;
+            printf("Task marked as completed!\n");
+            break;
+        }
+        else {
+            printf("Invalid Task index!\n");
             break;
         }
     }
@@ -129,8 +157,6 @@ void completeTask(int userIndex) {
                 tasks[i].text);
     }
     fclose(file);
-
-    printf("Task marked as completed!\n");
 }
 
 
@@ -138,12 +164,26 @@ void completeTask(int userIndex) {
 int main(void) {
     char command[32];
 
-    printf("TODO CLI app made by GasSpace\n");
+    initscr();
+    int row, col;
+    getmaxyx(stdscr, row, col);
+
+    char *msg = "TODO CLI app made by GasSpace";
+    int len = strlen(msg);
+
+    mvprintw(row/2, (col-len)/2, "%s", msg);
+
+    refresh();
+    getch();
+    endwin();
+
     printf(
         "A : Add task\n"
         "V : View tasks\n"
         "C <num> : Complete task\n"
         "D <num> : Delete task\n"
+        "X : Delete task data (perm)\n"
+        "R : View the task file (raw)\n"
         "Q : Quit\n"
     );
 
@@ -171,17 +211,28 @@ int main(void) {
             if (sscanf(command + 1, "%d", &n) == 1)
                 completeTask(n);
             else
-                printf("Usage: c <number>\n");
+                printf("Usage: c <number> (Complete a Task)\n");
         }
         else if (command[0] == 'd' || command[0] == 'D') {
             int n;
             if (sscanf(command + 1, "%d", &n) == 1)
                 deleteTask(n);
             else
-                printf("Usage: d <number>\n");
+                printf("Usage: d <number> (Delete a Task)\n");
         }
-        else {
-            printf("Invalid command\n");
+        else if (command[0] == 'r' || command[0] == 'R') {
+            viewTasksRaw();
+        }
+        else if (command[0] == 'x' || command[0] == 'X') {
+            char confirmation;
+            printf("WARNING : This command removes all task data!!!\nContinue?(Y,N): ");
+            scanf("%c", &confirmation);
+            if (confirmation == 'y' || confirmation == 'Y') {
+                clearTaskData();
+            }
+            else {
+                printf("That a mistake dawg\n");
+            }
         }
     }
 
